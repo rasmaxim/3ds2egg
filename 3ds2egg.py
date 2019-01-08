@@ -1,8 +1,8 @@
 #!/usr/bin/python
 # vim:tabstop=4:shiftwidth=4:syntax=python:expandtab
 """
-    This Version: $Id: 3ds2egg.py,v 1.13 2008/06/03 03:48:15 andyp Exp $
-    Info: info >at< pfastergames.com
+    Created by Andre von Houck aka treeform
+    Ported to Python 3 by rasmaxim
 
     Extended from: http://panda3d.org/phpbb2/viewtopic.php?t=3378
     .___..__ .___.___.___.__..__ .  .
@@ -24,7 +24,6 @@ import math
 import string
 import getopt
 import sys, os
-
 
 def floats(float_list):
     """coerce a list of strings that represent floats into a list of floats"""
@@ -126,21 +125,21 @@ class TDSChunk:
         return self
 
     def get(self, key):
-        if self.attrib.has_key(key):
+        if key in self.attrib:
             return self.attrib[key]
         return None
 
-    def has_key(self, key):
-        return self.attrib.has_key(key)
+    def __contains__(self, key):
+        return key in self.attrib
 
     def isContainer(self, id):
-        if TDSChunk.CHUNK_ATTRIB.has_key(id):
+        if id in TDSChunk.CHUNK_ATTRIB:
             attr = TDSChunk.CHUNK_ATTRIB[id]
             return attr["container"]
         return False
 
     def getchunknamebyid(self, id):
-        if TDSChunk.CHUNK_ATTRIB.has_key(id):
+        if id in TDSChunk.CHUNK_ATTRIB:
             attr = TDSChunk.CHUNK_ATTRIB[id]
             return attr["name"]
         return "UNKNOWN_%04x" % id
@@ -158,7 +157,7 @@ class TDSChunk:
     def chunkmaker(self, parentchunk, id):
         """make a chunk, perhaps specialized, by .3ds chunk id"""
         maker = None
-        if TDSChunk.CHUNK_ATTRIB.has_key(id) and TDSChunk.CHUNK_ATTRIB[id].has_key("make"):
+        if id in TDSChunk.CHUNK_ATTRIB and "make" in TDSChunk.CHUNK_ATTRIB[id]:
             maker = TDSChunk.CHUNK_ATTRIB[id]["make"]
         if maker is None:
             maker = TDSChunk
@@ -180,7 +179,7 @@ class TDSChunk:
             child.base = base
             child.limit = child.base + length
             if verbose:
-                print "    " * depth, "%6d 0x%04x %6d [%s]" % (base, id, length, self.getchunknamebyid(id))
+                print ("    " * depth, "%6d 0x%04x %6d [%s]" % (base, id, length, self.getchunknamebyid(id)))
             self.addChild(child)
             child.subdivide(depth + 1, self, data)
             base = child.limit
@@ -188,7 +187,7 @@ class TDSChunk:
 
     def isKnownChunkID(self, id=None):
         if id is None: id = self.id
-        return TDSChunk.CHUNK_ATTRIB.has_key(id)
+        return id in TDSChunk.CHUNK_ATTRIB
 
     def getchildren(self):
         return self.child
@@ -228,7 +227,7 @@ class ChunkRoot(TDSChunk):
         self.limit = self.base + length
         self.data = header + fileobj.read(length - 6)
         if verbose:
-            print "%6d 0x%04x %6d [%s]" % (self.base, id, length, self.getchunknamebyid(id))
+            print ("%6d 0x%04x %6d [%s]" % (self.base, id, length, self.getchunknamebyid(id)))
         return self
 
     def addMaterial(self, matchunk):
@@ -240,13 +239,13 @@ class ChunkRoot(TDSChunk):
 
     def getMaterial(self, name):
         """return a material chunk given a name"""
-        if self.materialsbyname.has_key(name):
+        if name in self.materialsbyname:
             return self.materialsbyname[name]
         return None
 
     def eggifygeometry(self, rootchunk, egg):
         """start making an .egg before recursing"""
-        print "ChunkRoot:", "egg:", egg
+        print ("ChunkRoot:", "egg:", egg)
         eobj = EggGroup(self.get("name"))
         egg.addChild(eobj)
         TDSChunk.eggifygeometry(self, rootchunk, eobj)
@@ -276,7 +275,7 @@ class ChunkNamedObject(TDSChunk):
         egrp = EggGroup(self.get("name"))
         egg.addChild(egrp)
         TDSChunk.eggifygeometry(self, rootchunk, egrp)
-        if False: print "namedobject:", self.get("name")
+        if False: print ("namedobject:", self.get("name"))
         return self
 
 class ChunkTriObject(TDSChunk):
@@ -292,7 +291,7 @@ class ChunkTriObject(TDSChunk):
         return self
 
     def getMatNameByFace(self, facenum):
-        if self.matnamebyface.has_key(facenum):
+        if facenum in self.matnamebyface:
             return self.matnamebyface[facenum]
         return None
 
@@ -361,7 +360,7 @@ class ChunkTriObject(TDSChunk):
             mtl = self.getMaterialByFace(rootchunk, facenum)
             self.__eggifypoly(egg, epoly, evpool, rootchunk, facenum, face, points, uvs, mtl)
             facenum += 1
-        print "object \"%s\": %d tris, %d vertices, %d uvs" % (name, len(faces), len(points), len(uvs))
+        print("object \"%s\": %d tris, %d vertices, %d uvs" % (name, len(faces), len(points), len(uvs)))
         return self
 
 
@@ -375,7 +374,7 @@ class ChunkPoints(TDSChunk):
         nverts = struct.unpack("<H", data[base:base+2])[0]
         base += 2;
         verts = []
-        for i in xrange(0, nverts):
+        for i in range(0, nverts):
             verts.append(struct.unpack("<fff", data[base:base+12]))
             base += 12
         self.parent.put("points", verts)
@@ -391,7 +390,7 @@ class ChunkUVs(TDSChunk):
         nverts = struct.unpack("<H", data[base:base+2])[0]
         base += 2;
         verts = []
-        for i in xrange(0, nverts):
+        for i in range(0, nverts):
             verts.append(struct.unpack("<ff", data[base:base+8]))
             base += 8
         self.parent.put("uvs", verts)
@@ -426,7 +425,7 @@ class ChunkFaces(TDSChunk):
         nfaces = struct.unpack("<H", data[base:base+2])[0]
         base += 2
         faces = []
-        for i in xrange(0, nfaces):
+        for i in range(0, nfaces):
             # face: (v1, v2, v3, faceinfobits)
             faces.append(struct.unpack("<HHHH", data[base:base+8]))
             base += 8
@@ -443,7 +442,7 @@ class ChunkMeshMatrix(TDSChunk):
         base = self.base + 6
         nitems = 12
         matrix = []
-        for i in xrange(0, 12):
+        for i in range(0, 12):
             matrix.append(struct.unpack("<f", data[base:base+4])[0])
             base += 4
         self.parent.put("meshmatrix", matrix)
@@ -467,7 +466,7 @@ class ChunkMeshMatGroup(TDSChunk):
         nfaces = struct.unpack("<H", data[base:base+2])[0]
         base += 2
         faces = []
-        for i in xrange(0, nfaces):
+        for i in range(0, nfaces):
             faces.append(struct.unpack("<H", data[base:base+2])[0])
             base += 2
         self.put("faces", faces)
@@ -515,7 +514,7 @@ class ChunkMaterial(TDSChunk):
             terse["twosided"] = True
         if self.get("texturemap"):
             terse["texturemap"] = self.get("texturemap")
-        print "material:", self.get("name"), terse
+        print ("material:", self.get("name"), terse)
         rootchunk.addMaterial(self)
         return self
 
@@ -553,7 +552,7 @@ class ChunkMaterial(TDSChunk):
         if not self.isTextured():
             return None
         # incomplete for now (ignores flags found in the .3ds file)
-        m = EggTexture(self.get("name") + "_diffuse", self.get("texturemap"))
+        m = EggTexture(str(self.get("name")) + "_diffuse", self.get("texturemap"))
         m.setFormat(EggTexture.FRgb)
         m.setMagfilter(EggTexture.FTLinearMipmapLinear)
         m.setMinfilter(EggTexture.FTLinearMipmapLinear)
@@ -727,17 +726,17 @@ class TDSFile:
             self.read(filename)
 
     def read(self, filename, verbose=False):
-        if verbose: print "TDSFile.read:", "filename:", filename
+        if verbose: print ("TDSFile.read:", "filename:", filename)
         self.filename = filename
         try:
-            file = open(filename)
+            file = open(filename, "rb")
         except:
             return self
         chunk = ChunkRoot(None)
         chunk.load(file, 0, True)
         file.close()
         if not chunk.isKnownChunkID():
-            print "unknown chunk id:", chunk.id
+            print ("unknown chunk id:", chunk.id)
             return self
         chunk.subdivide(1, chunk, chunk.data)
         self.rootchunk = chunk
@@ -762,7 +761,7 @@ class TDSFile:
         return self
 
     def toEgg(self, verbose=True):
-        if verbose: print "converting..."
+        if verbose: print ("converting...")
         # make a new egg
         egg = EggData()
         self.__eggifyinit(self.rootchunk, egg)
@@ -781,7 +780,7 @@ def pathify(path):
     h, t = os.path.split(path)
     if os.path.isfile(t):
         return t
-    print "warning: can't make sense of this map file name:", orig
+    print ("warning: can't make sense of this map file name:", orig)
     return t
     
 
@@ -790,21 +789,21 @@ def main(argv=None):
         argv = sys.argv
     try:
         opts, args = getopt.getopt(argv[1:], "hn:bs", ["help", "normals", "binormals", "show"])
-    except getopt.error, msg:
-        print msg
-        print __doc__
+    except getopt.error as msg:
+        print (msg)
+        print (__doc__)
         return 2
     show = False
     for o, a in opts:
         if o in ("-h", "--help"):
-            print __doc__
+            print (__doc__)
             return 0
         elif o in ("-s", "--show"):
             show = True
     for infile in args:
         try:
             if ".3ds" not in infile and ".3DS" not in infile:
-                print "WARNING", infile, "does not look like a valid .3ds file"
+                print ("WARNING", infile, "does not look like a valid .3ds file")
                 continue
             tds = TDSFile(infile)
             egg = tds.toEgg()
@@ -812,21 +811,21 @@ def main(argv=None):
             outfile = f + ".egg"
             for o, a in opts:
                 if o in ("-n", "--normals"):
-                    print "recomputing vertex normals..."
+                    print ("recomputing vertex normals...")
                     egg.recomputeVertexNormals(float(a))
                 elif o in ("-b", "--binormals"):
-                    print "recomputing tangent binormals..."
+                    print ("recomputing tangent binormals...")
                     egg.recomputeTangentBinormal(GlobPattern(""))
-            print "removing unreferenced vertices..."
+            print ("removing unreferenced vertices...")
             egg.removeUnusedVertices(GlobPattern(""))
             if True:
-                print "recomputing polygon normals..."
+                print ("recomputing polygon normals...")
                 egg.recomputePolygonNormals()
             egg.writeEgg(Filename(outfile))
             if show:
                 os.system("pview " + outfile)
-        except Exception,e:
-            print e
+        except Exception as e:
+            print (e)
     return 0
 
 if __name__ == "__main__":
